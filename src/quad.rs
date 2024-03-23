@@ -188,6 +188,9 @@ mod tests {
             Matrix2::new(0.0, 1.0, -1.0, 0.0),
         ];
 
+        let (original_ghash, _) = Quad::<()>::compute_ghash(&stars).unwrap();
+        println!("Initial hash: {:?}", original_ghash);
+
         for scale in &scales {
             for rotation in &rotations {
                 let transformed_stars: [(f64, f64); 4] = star_vecs
@@ -205,18 +208,16 @@ mod tests {
                     ((transformed_stars[3].0, transformed_stars[3].1), ()),
                 ]);
 
-                let (hash, _) = Quad::<()>::compute_ghash(&transformed_stars).unwrap();
-
                 for stars in permutations {
                     let quad = Quad::new(stars, ()).unwrap();
                     quad.assert_invariants();
                     println!("Initial hash: {:?}", quad.ghash);
                     assert!(
                         Vector4::new(
-                            quad.ghash[0] - hash[0],
-                            quad.ghash[1] - hash[1],
-                            quad.ghash[2] - hash[2],
-                            quad.ghash[3] - hash[3]
+                            quad.ghash[0] - original_ghash[0],
+                            quad.ghash[1] - original_ghash[1],
+                            quad.ghash[2] - original_ghash[2],
+                            quad.ghash[3] - original_ghash[3]
                         )
                         .norm()
                             < 1e-7
