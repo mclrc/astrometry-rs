@@ -55,9 +55,9 @@ impl<Star: Debug + Clone, Meta> Quad<Star, Meta> {
         let (mut a_idx, mut b_idx) = (0..4)
             .tuple_combinations()
             .max_by(|&(i, j), &(k, l)| {
-                let dist_ab = Vector2::new(stars[i].0 - stars[j].0, stars[i].1 - stars[j].1).norm();
+                let dist_ij = Vector2::new(stars[i].0 - stars[j].0, stars[i].1 - stars[j].1).norm();
                 let dist_kl = Vector2::new(stars[k].0 - stars[l].0, stars[k].1 - stars[l].1).norm();
-                dist_ab.partial_cmp(&dist_kl).unwrap()
+                dist_ij.partial_cmp(&dist_kl).unwrap()
             })
             .unwrap();
 
@@ -138,31 +138,24 @@ impl<Star: Debug + Clone, Meta> Quad<Star, Meta> {
 
 #[cfg(test)]
 mod tests {
+    use itertools::iproduct;
     use nalgebra::Vector4;
 
     use super::*;
 
-    fn permutations<T: Clone + Debug, const N: usize>(arr: &[T; N]) -> Vec<[T; N]> {
-        arr.iter()
-            .permutations(N)
-            .map(|p| {
-                p.iter()
-                    .map(|&x| x.clone())
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap()
-            })
-            .collect()
-    }
+    #[test]
+    fn test_permutations() {
+        let quads = [
+            [(-2.44, 3.98), (3.26, -1.34), (1.9, 3.7), (-1.14, -0.46)],
+            [(0.5, 1.2), (-2.3, 0.4), (2.8, -1.5), (-0.9, 1.8)],
+            [(4.5, -3.2), (1.1, 1.5), (-3.3, -1.1), (0.0, 0.0)],
+            [(-1.7, 2.4), (-2.9, -3.8), (3.5, 1.6), (1.2, -2.2)],
+            [(2.7, 3.4), (-0.5, -0.8), (1.0, 1.2), (1.8, -3.6)],
+            [(0.3, 2.7), (0.0, 0.0), (2.5, 0.9), (-2.6, 1.1)],
+            [(2.2, -1.7), (-3.5, 2.8), (1.6, 3.3), (-1.2, -2.9)],
+        ];
 
-    fn test_permutations(stars: &[(f64, f64); 4]) {
-        println!("Starting test with stars {:?}", stars);
-
-        let star_vecs = stars
-            .iter()
-            .cloned()
-            .map(|(x, y)| Vector2::new(x, y))
-            .collect::<Vec<_>>();
+        let arrangements = [0, 1, 2, 3].into_iter().permutations(4).collect::<Vec<_>>();
 
         let scales = [
             // Identity
@@ -188,54 +181,34 @@ mod tests {
             Matrix2::new(0.0, 1.0, -1.0, 0.0),
         ];
 
-        let (original_ghash, _) = Quad::<()>::compute_ghash(&stars).unwrap();
-        println!("Initial hash: {:?}", original_ghash);
+        for stars in quads.iter() {
+            let (original_ghash, _) = Quad::<()>::compute_ghash(stars).unwrap();
 
-        for scale in &scales {
-            for rotation in &rotations {
-                let transformed_stars: [(f64, f64); 4] = star_vecs
+            for (arrangement, scale, rotation) in
+                iproduct!(arrangements.iter(), scales.iter(), rotations.iter())
+            {
+                let transformed_stars: [((f64, f64), ()); 4] = arrangement
                     .iter()
-                    .map(|v| scale * rotation * v)
-                    .map(|v| (v.x, v.y))
+                    .map(|&idx| stars[idx])
+                    .map(|(x, y)| rotation * scale * Vector2::new(x, y))
+                    .map(|v| ((v[0], v[1]), ()))
                     .collect::<Vec<_>>()
                     .try_into()
                     .unwrap();
 
-                let permutations = permutations(&[
-                    ((transformed_stars[0].0, transformed_stars[0].1), ()),
-                    ((transformed_stars[1].0, transformed_stars[1].1), ()),
-                    ((transformed_stars[2].0, transformed_stars[2].1), ()),
-                    ((transformed_stars[3].0, transformed_stars[3].1), ()),
-                ]);
-
-                for stars in permutations {
-                    let quad = Quad::new(stars, ()).unwrap();
-                    quad.assert_invariants();
-                    println!("Initial hash: {:?}", quad.ghash);
-                    assert!(
-                        Vector4::new(
-                            quad.ghash[0] - original_ghash[0],
-                            quad.ghash[1] - original_ghash[1],
-                            quad.ghash[2] - original_ghash[2],
-                            quad.ghash[3] - original_ghash[3]
-                        )
-                        .norm()
-                            < 1e-7
-                    );
-                    println!("Permutation test passed");
-                }
+                let quad = Quad::new(transformed_stars, ()).unwrap();
+                quad.assert_invariants();
+                assert!(
+                    Vector4::new(
+                        quad.ghash[0] - original_ghash[0],
+                        quad.ghash[1] - original_ghash[1],
+                        quad.ghash[2] - original_ghash[2],
+                        quad.ghash[3] - original_ghash[3]
+                    )
+                    .norm()
+                        < 1e-10
+                );
             }
         }
-    }
-
-    #[test]
-    fn geometric_hash() {
-        test_permutations(&[(-2.44, 3.98), (3.26, -1.34), (1.9, 3.7), (-1.14, -0.46)]);
-        test_permutations(&[(0.5, 1.2), (-2.3, 0.4), (2.8, -1.5), (-0.9, 1.8)]);
-        test_permutations(&[(4.5, -3.2), (1.1, 1.5), (-3.3, -1.1), (0.0, 0.0)]);
-        test_permutations(&[(-1.7, 2.4), (-2.9, -3.8), (3.5, 1.6), (1.2, -2.2)]);
-        test_permutations(&[(2.7, 3.4), (-0.5, -0.8), (1.0, 1.2), (1.8, -3.6)]);
-        test_permutations(&[(0.3, 2.7), (0.0, 0.0), (2.5, 0.9), (-2.6, 1.1)]);
-        test_permutations(&[(2.2, -1.7), (-3.5, 2.8), (1.6, 3.3), (-1.2, -2.9)]);
     }
 }
