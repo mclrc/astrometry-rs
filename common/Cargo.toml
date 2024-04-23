@@ -1,0 +1,16 @@
+[package]
+name = "common"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+itertools = "0.12.1"
+kdtree = { version = "0.7.0", features = [
+  "serde",
+  "serde_derive",
+  "serialize",
+] }
+nalgebra = "0.32.5"
+serde = { version = "1.0.198", features = ["derive"] }

@@ -1,19 +1,19 @@
 use itertools::Itertools;
 use nalgebra::{Matrix2, Vector2};
+use serde::{Deserialize, Serialize};
 use std::f64::consts::SQRT_2;
 use std::fmt::Debug;
 
 type GHash = [f64; 4];
 
-#[derive(Debug)]
-pub struct Quad<Star = (), Meta = ()> {
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+pub struct Quad<Star = ()> {
     stars: [Star; 4],
     ghash: GHash,
-    meta: Meta,
 }
 
-impl<Star: Debug + Clone, Meta> Quad<Star, Meta> {
-    pub fn new(stars: [((f64, f64), Star); 4], meta: Meta) -> Option<Self> {
+impl<Star: Debug + Clone + Eq> Quad<Star> {
+    pub fn new(stars: [((f64, f64), Star); 4]) -> Option<Self> {
         let star_positions = [stars[0].0, stars[1].0, stars[2].0, stars[3].0];
 
         if let Some((ghash, arrangement)) = Self::compute_ghash(&star_positions) {
@@ -24,7 +24,7 @@ impl<Star: Debug + Clone, Meta> Quad<Star, Meta> {
                 stars[arrangement[3]].1.clone(),
             ];
 
-            Some(Self { ghash, meta, stars })
+            Some(Self { ghash, stars })
         } else {
             None
         }
@@ -120,10 +120,6 @@ impl<Star: Debug + Clone, Meta> Quad<Star, Meta> {
         self.ghash
     }
 
-    pub fn meta(&self) -> &Meta {
-        &self.meta
-    }
-
     pub fn assert_invariants(&self) {
         // Invariant 2
         let mid = Vector2::new(0.5, 0.5);
@@ -207,7 +203,7 @@ mod tests {
                     .try_into()
                     .unwrap();
 
-                let quad = Quad::new(transformed_stars, ()).unwrap();
+                let quad = Quad::new(transformed_stars).unwrap();
                 quad.assert_invariants();
                 assert!(
                     Vector4::new(
