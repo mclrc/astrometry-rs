@@ -181,16 +181,27 @@ mod tests {
             Matrix2::new(0.0, 1.0, -1.0, 0.0),
         ];
 
+        let translations = [
+            Vector2::new(0.0, 0.0),
+            Vector2::new(1.0, 1.0),
+            Vector2::new(-1.0, 1.0),
+            Vector2::new(1000.0, -2000.0),
+            Vector2::new(-1e7, 1e6),
+        ];
+
         for stars in quads.iter() {
             let (original_ghash, _) = Quad::<()>::compute_ghash(stars).unwrap();
 
-            for (arrangement, scale, rotation) in
-                iproduct!(arrangements.iter(), scales.iter(), rotations.iter())
-            {
+            for (arrangement, scale, rotation, translation) in iproduct!(
+                arrangements.iter(),
+                scales.iter(),
+                rotations.iter(),
+                translations.iter()
+            ) {
                 let transformed_stars: [((f64, f64), ()); 4] = arrangement
                     .iter()
                     .map(|&idx| stars[idx])
-                    .map(|(x, y)| rotation * scale * Vector2::new(x, y))
+                    .map(|(x, y)| rotation * scale * Vector2::new(x, y) + translation)
                     .map(|v| ((v[0], v[1]), ()))
                     .collect::<Vec<_>>()
                     .try_into()
@@ -206,7 +217,7 @@ mod tests {
                         quad.ghash[3] - original_ghash[3]
                     )
                     .norm()
-                        < 1e-10
+                        < 1e-7
                 );
             }
         }
