@@ -247,6 +247,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 [[package]]
 name = "fitrs"
 version = "0.5.0"
+source = "git+https://github.com/mclrc/fitrs?rev=35a38c0#35a38c00c2d9fbb31757c73c844dbbc3830e870e"
 dependencies = [
  "byteorder",
 ]
