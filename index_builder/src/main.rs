@@ -39,13 +39,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("{}", table.len());
 
-    for row in table.iter::<CatalogObject>() {
-        match row {
-            Ok(row) => println!("RA {}\t\tDEC {}", row.ra, row.dec),
-            Err(e) => {
-                eprintln!("Error: {}", e);
-            }
-        }
+    for (name, _) in table.columns().iter() {
+        println!("{}", name);
     }
 
     Ok(())

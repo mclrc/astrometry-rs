@@ -17,7 +17,10 @@ fn datatype_size(dtype: char) -> Result<usize, String> {
         'D' => 8,  // Double-precision floating point (64-bit float)
         'C' => 8,  // Complex floating point (2 x 32-bit)
         'M' => 16, // Double complex floating point (2 x 64-bit)
-        _ => Err(format!("Unknown column type: {}", dtype))?,
+        _ => Err(format!(
+            "Can't calculate size: unknown column type: {}",
+            dtype
+        ))?,
     })
 }
 
@@ -46,12 +49,12 @@ fn parse_bytes(dtype: char, bytes: &[u8]) -> Result<Value, Box<dyn Error>> {
             "real": f64::from_be_bytes(bytes.try_into()?),
             "imaginary": f64::from_be_bytes(bytes.try_into()?),
         }),
-        _ => Err(format!("Unknown column type: {}", dtype))?,
+        _ => Err(format!("Can't parse value: unknown column type: {}", dtype))?,
     })
 }
 
 fn read_to_string(hdu: &Hdu, key: &str) -> Result<String, String> {
-    match hdu.value(key).unwrap() {
+    match hdu.value(key).ok_or(format!("Value not found: {}", key))? {
         HeaderValue::CharacterString(s) => Ok(s.clone()),
         v => Err(format!("{} Not a string: {:?}", key, v)),
     }
@@ -98,7 +101,7 @@ pub struct FitsColumn {
     index: usize,
     name: String,
     format: String,
-    unit: String,
+    unit: Option<String>,
     datatype: char,
     count: usize,
     size: usize,
@@ -107,14 +110,6 @@ pub struct FitsColumn {
 }
 
 impl FitsColumn {
-    pub fn iter(&self) -> ColumnIter {
-        ColumnIter::new(
-            &self.data.data,
-            self.data.shape[0],
-            [self.offset, self.size],
-        )
-    }
-
     pub fn value(&self, row: usize) -> Result<Value, Box<dyn Error>> {
         let bytes =
             &self.data.data[row * self.data.shape[0]..][self.offset..self.offset + self.size];
@@ -133,6 +128,14 @@ impl FitsColumn {
         }
     }
 
+    pub fn iter(&self) -> ColumnIter {
+        ColumnIter::new(
+            &self.data.data,
+            self.data.shape[0],
+            [self.offset, self.size],
+        )
+    }
+
     pub fn index(&self) -> usize {
         self.index
     }
@@ -145,8 +148,8 @@ impl FitsColumn {
         &self.format
     }
 
-    pub fn unit(&self) -> &str {
-        &self.unit
+    pub fn unit(&self) -> Option<&str> {
+        self.unit.as_deref()
     }
 }
 
@@ -193,7 +196,7 @@ impl FitsTable {
         for i in 1..=nfields {
             let format = read_to_string(hdu, &format!("TFORM{}", i))?;
             let name = read_to_string(hdu, &format!("TTYPE{}", i))?;
-            let unit = read_to_string(hdu, &format!("TUNIT{}", i))?;
+            let unit = read_to_string(hdu, &format!("TUNIT{}", i)).ok();
 
             let count = format[..1].parse::<usize>().unwrap();
             let dtype = format.chars().nth(1).unwrap();
@@ -204,11 +207,11 @@ impl FitsTable {
                 name.clone(),
                 FitsColumn {
                     index: columns.len(),
-                    name: name.clone(),
-                    format: format.clone(),
+                    name,
+                    format,
                     datatype: dtype,
                     count,
-                    unit: unit.clone(),
+                    unit,
                     size: column_size,
                     data: Rc::clone(&data),
                     offset,
