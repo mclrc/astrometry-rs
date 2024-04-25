@@ -1,7 +1,7 @@
 use kdtree::KdTree;
 use serde::{Deserialize, Serialize};
 
-use crate::Quad;
+use crate::quad::Quad;
 
 #[derive(Serialize, Deserialize, PartialEq)]
 pub struct IndexStar {

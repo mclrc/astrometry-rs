@@ -1,61 +1,52 @@
-use fitrs::{Fits, Hdu, HeaderValue};
+use std::error::Error;
 
 use clap::Parser;
+use serde::Deserialize;
 
-#[derive(Parser)]
+use common::fits::FitsTable;
+
+#[derive(Deserialize, Debug)]
+#[allow(dead_code)]
+struct CatalogObject {
+    #[serde(rename = "USNOB_ID")]
+    usnob_id: i32,
+    #[serde(rename = "RA")]
+    ra: f64,
+    #[serde(rename = "DEC")]
+    dec: f64,
+    #[serde(rename = "MAGNITUDE_0")]
+    mag0: f32,
+    #[serde(rename = "MAGNITUDE_1")]
+    mag1: f32,
+    #[serde(rename = "MAGNITUDE_2")]
+    mag2: f32,
+    #[serde(rename = "MAGNITUDE_3")]
+    mag3: f32,
+    #[serde(rename = "MAGNITUDE_4")]
+    mag4: f32,
+}
+
+#[derive(Parser, Debug)]
 struct Args {
-    #[clap(long)]
-    file: String,
-    /* #[clap(long)]
-    order: u32,
-    #[clap(long = "sphpx")]
-    stars_per_healpix: u32,
     #[clap(short, long)]
-    output: String, */
+    file: String,
 }
 
-fn find_n_fields(hdu: &Hdu, key: &str, n: i32) -> Vec<String> {
-    (0..n)
-        .map(|i| hdu.value(&format!("{}{}", key, i + 1)).unwrap())
-        .map(|v| match v {
-            HeaderValue::CharacterString(s) => s.clone(),
-            v => panic!("{} Not a string: {:?}", key, v),
-        })
-        .collect::<Vec<_>>()
-}
+fn main() -> Result<(), Box<dyn Error>> {
+    let Args { file } = Args::parse();
 
-fn main() {
-    let args = Args::parse();
+    let table = FitsTable::open(&file, 1)?;
 
-    let fits = Fits::open(args.file).unwrap();
+    println!("{}", table.len());
 
-    let hdu = fits.get(1).unwrap();
-
-    let nfields = match hdu.value("TFIELDS").unwrap() {
-        HeaderValue::IntegerNumber(n) => *n,
-        v => panic!("TFIELDS Not an integer: {:?}", v),
-    };
-
-    let names = find_n_fields(&hdu, "TTYPE", nfields);
-    let formats = find_n_fields(&hdu, "TFORM", nfields);
-    let units = find_n_fields(&hdu, "TUNIT", nfields);
-
-    for ((name, format), unit) in names.iter().zip(formats.iter()).zip(units.iter()) {
-        println!("{} {} {}", name, format, unit);
+    for row in table.iter::<CatalogObject>() {
+        match row {
+            Ok(row) => println!("RA {}\t\tDEC {}", row.ra, row.dec),
+            Err(e) => {
+                eprintln!("Error: {}", e);
+            }
+        }
     }
 
-    println!("{:?}", fits.get(1).unwrap().header());
-    for hdu in fits.iter() {
-        println!("{:?}", hdu.header().iter().map(|h| &h.0));
-    }
-
-    println!("{:?}\n\n", hdu.value("BITPIX").unwrap());
-    println!("{:?}", hdu.value("NAXIS").unwrap());
-    println!("{:?}", hdu.value("NAXIS1").unwrap());
-    println!("{:?}", hdu.value("NAXIS2").unwrap());
-    println!("{:?}", hdu.naxis());
-
-    let data = hdu.read_data();
-
-    println!("{:?}", data);
+    Ok(())
 }

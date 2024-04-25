@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
-fitrs = { git = "https://github.com/mclrc/fitrs", rev = "35a38c0" }
+common = { path = "../common" }
 futures = "0.3.30"
 kdtree = { version = "0.7.0", features = ["serialize"] }
 serde = { version = "1.0.198", features = ["serde_derive", "derive"] }
