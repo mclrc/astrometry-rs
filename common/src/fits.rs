@@ -4,24 +4,31 @@ use fitrs::{Fits, FitsData, FitsDataArray, Hdu, HeaderValue};
 use serde::de::DeserializeOwned;
 use serde_json::{json, Map, Number, Value};
 
-fn datatype_size(dtype: char) -> Result<usize, String> {
-    Ok(match dtype {
-        'L' => 1,  // Logical (boolean)
-        'X' => 1,  // Bit
-        'B' => 1,  // 8-bit byte
-        'I' => 2,  // 16-bit integer
-        'J' => 4,  // 32-bit integer
-        'K' => 8,  // 64-bit integer
-        'A' => 1,  // Character
-        'E' => 4,  // Single-precision floating point (32-bit float)
-        'D' => 8,  // Double-precision floating point (64-bit float)
-        'C' => 8,  // Complex floating point (2 x 32-bit)
-        'M' => 16, // Double complex floating point (2 x 64-bit)
-        _ => Err(format!(
-            "Can't calculate size: unknown column type: {}",
-            dtype
-        ))?,
-    })
+fn datatype_size(format: &str) -> Result<usize, String> {
+    let count = format[..1].parse::<usize>().unwrap();
+    let datatype = format.chars().nth(1).unwrap();
+
+    if datatype == 'X' {
+        Ok((count as f32 / 8.0).ceil() as usize)
+    } else {
+        Ok(match datatype {
+            'L' => 1,  // Logical (boolean)
+            'B' => 1,  // 8-bit byte
+            'I' => 2,  // 16-bit integer
+            'J' => 4,  // 32-bit integer
+            'K' => 8,  // 64-bit integer
+            'A' => 1,  // Character
+            'E' => 4,  // Single-precision floating point (32-bit float)
+            'D' => 8,  // Double-precision floating point (64-bit float)
+            'C' => 8,  // Complex floating point (2 x 32-bit)
+            'M' => 16, // Double complex floating point (2 x 64-bit)
+            'X' => Err("Bit (X) size cannot be given in bytes")?,
+            _ => Err(format!(
+                "Can't calculate size: unknown column type: {}",
+                datatype
+            ))?,
+        })
+    }
 }
 
 fn parse_bytes(dtype: char, bytes: &[u8]) -> Result<Value, Box<dyn Error>> {
@@ -42,12 +49,12 @@ fn parse_bytes(dtype: char, bytes: &[u8]) -> Result<Value, Box<dyn Error>> {
         ),
         'A' => Value::String(String::from_utf8(bytes.to_vec())?),
         'C' => json!({
-            "real": f32::from_be_bytes(bytes.try_into()?),
-            "imaginary": f32::from_be_bytes(bytes.try_into()?),
+            "real": f32::from_be_bytes(bytes[..4].try_into()?),
+            "imaginary": f32::from_be_bytes(bytes[4..].try_into()?),
         }),
         'M' => json!({
-            "real": f64::from_be_bytes(bytes.try_into()?),
-            "imaginary": f64::from_be_bytes(bytes.try_into()?),
+            "real": f64::from_be_bytes(bytes[..8].try_into()?),
+            "imaginary": f64::from_be_bytes(bytes[8..].try_into()?),
         }),
         _ => Err(format!("Can't parse value: unknown column type: {}", dtype))?,
     })
@@ -114,12 +121,12 @@ impl FitsColumn {
         let bytes =
             &self.data.data[row * self.data.shape[0]..][self.offset..self.offset + self.size];
 
-        if self.count == 1 {
+        if self.count == 1 || self.datatype == 'X' {
             parse_bytes(self.datatype, bytes)
         } else {
             let array = Value::Array(
                 bytes
-                    .chunks(datatype_size(self.datatype)?)
+                    .chunks(datatype_size(&self.format)?)
                     .map(|chunk| parse_bytes(self.datatype, chunk))
                     .collect::<Result<Vec<_>, _>>()?,
             );
@@ -199,9 +206,9 @@ impl FitsTable {
             let unit = read_to_string(hdu, &format!("TUNIT{}", i)).ok();
 
             let count = format[..1].parse::<usize>().unwrap();
-            let dtype = format.chars().nth(1).unwrap();
+            let datatype = format.chars().nth(1).unwrap();
 
-            let column_size = datatype_size(dtype)? * count;
+            let column_size = datatype_size(&format)?;
 
             columns.insert(
                 name.clone(),
@@ -209,7 +216,7 @@ impl FitsTable {
                     index: columns.len(),
                     name,
                     format,
-                    datatype: dtype,
+                    datatype,
                     count,
                     unit,
                     size: column_size,
