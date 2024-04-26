@@ -1,0 +1,9 @@
+services:
+  database:
+    build:
+      context: ./database
+    env_file: .env
+    ports:
+      - 5432:5432
+    volumes:
+      - ${DATA_VOLUME}:/var/lib/postgresql/data:
