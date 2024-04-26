@@ -1,4 +1,4 @@
 # Postgres database
-FROM postgres:17.1 AS postgres
+FROM postgres:16.2 AS postgres
 
-COPY ./init.sql /docker-entrypoint-initdb.d/init.sql
+COPY ./setup.sql /docker-entrypoint-initdb.d/setup.sql
