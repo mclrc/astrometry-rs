@@ -4,6 +4,19 @@ use serde::{Deserialize, Serialize};
 use std::f64::consts::SQRT_2;
 use std::fmt::Debug;
 
+fn arrange<T>(arrangement: &[usize; 4], items: [T; 4]) -> impl Iterator<Item = T> {
+    items
+        .into_iter()
+        .enumerate()
+        .sorted_by(|(a_idx, _), (b_idx, _)| {
+            let a_pos = arrangement.iter().position(|e| e == a_idx);
+            let b_pos = arrangement.iter().position(|e| e == b_idx);
+
+            a_pos.cmp(&b_pos)
+        })
+        .map(|(_, item)| item)
+}
+
 type GHash = [f64; 4];
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -12,24 +25,26 @@ pub struct Quad<Star = ()> {
     ghash: GHash,
 }
 
-impl<Star: Debug + Clone + Eq> Quad<Star> {
+impl<Star: Debug> Quad<Star> {
     pub fn new(stars: [((f64, f64), Star); 4]) -> Option<Self> {
         let star_positions = [stars[0].0, stars[1].0, stars[2].0, stars[3].0];
 
         if let Some((ghash, arrangement)) = Self::compute_ghash(&star_positions) {
-            let stars = [
-                stars[arrangement[0]].1.clone(),
-                stars[arrangement[1]].1.clone(),
-                stars[arrangement[2]].1.clone(),
-                stars[arrangement[3]].1.clone(),
-            ];
+            // Get stars into the order of the arrangement
+            let arranged_stars = arrange(&arrangement, stars)
+                .map(|(_, star)| star)
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
 
-            Some(Self { ghash, stars })
+            Some(Self {
+                ghash,
+                stars: arranged_stars,
+            })
         } else {
             None
         }
     }
-
     /// Compute the geometric hash of the given set of stars.
     ///
     /// The geometric hash works as follows:
@@ -217,5 +232,15 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn test_arrange() {
+        assert!(arrange(&[0, 1, 2, 3], ['a', 'b', 'c', 'd']).eq(['a', 'b', 'c', 'd']));
+        assert!(arrange(&[0, 1, 3, 2], ['a', 'b', 'c', 'd']).eq(['a', 'b', 'd', 'c']));
+        assert!(arrange(&[0, 2, 1, 3], ['a', 'b', 'c', 'd']).eq(['a', 'c', 'b', 'd']));
+        assert!(arrange(&[0, 2, 3, 1], ['a', 'b', 'c', 'd']).eq(['a', 'c', 'd', 'b']));
+        assert!(arrange(&[0, 3, 1, 2], ['a', 'b', 'c', 'd']).eq(['a', 'd', 'b', 'c']));
+        assert!(arrange(&[3, 2, 1, 0], ['a', 'b', 'c', 'd']).eq(['d', 'c', 'b', 'a']));
     }
 }
