@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS catalog_object (
+    usnob_id INTEGER,
+    ra DOUBLE PRECISION,
+    sigma_ra REAL,
+    sigma_ra_fit REAL,
+    pm_ra REAL,
+    dec DOUBLE PRECISION,
+    sigma_dec REAL,
+    sigma_dec_fit REAL,
+    pm_dec REAL,
+    mag0 REAL,
+    mag1 REAL,
+    mag2 REAL,
+    mag3 REAL,
+    mag4 REAL,
+    epoch REAL,
+    num_detections INTEGER,
+    flags BIT(8),
+    origin_file TEXT
+);
