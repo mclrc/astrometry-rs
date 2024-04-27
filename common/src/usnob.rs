@@ -56,6 +56,15 @@ pub struct Observation {
 }
 
 #[derive(Debug, Serialize)]
+pub struct Observations {
+    pub blue1: Option<Observation>,
+    pub red1: Option<Observation>,
+    pub blue2: Option<Observation>,
+    pub red2: Option<Observation>,
+    pub infrared: Option<Observation>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct USNOBObject {
     // Identifier used internally, not part of the USNO-B files
     pub usnob_id: String,
@@ -99,8 +108,8 @@ pub struct USNOBObject {
     pub motion_catalog: bool,
     pub ys4: bool,
 
-    // Observations for this object, stored in a fixed order
-    pub observations: [Option<Observation>; 5],
+    // Observations for this object
+    pub observations: Observations,
 }
 
 fn extract_digit_chunks<const N: usize>(mut n: u32, chunks: [usize; N]) -> [u32; N] {
@@ -196,6 +205,8 @@ impl USNOBObject {
             .try_into()
             .unwrap();
 
+        let [blue1, red1, blue2, red2, infrared] = observations;
+
         let slice = ((dec + 90.0) * 10.0).floor();
         let id = format!("{:04}-{:07}", slice, id);
 
@@ -217,7 +228,13 @@ impl USNOBObject {
             diffraction_spike,
             motion_catalog,
             ys4,
-            observations,
+            observations: Observations {
+                blue1,
+                red1,
+                blue2,
+                red2,
+                infrared,
+            },
         })
     }
 }
@@ -263,5 +280,15 @@ impl USNOBFile {
             index: 0,
             reader: BufReader::new(&self.file),
         }
+    }
+
+    pub fn len(&self) -> Result<usize> {
+        let metadata = self.file.metadata()?;
+        let len = metadata.len();
+        Ok((len / USNOB_RECORD_SIZE as u64) as usize)
+    }
+
+    pub fn is_empty(&self) -> Result<bool> {
+        Ok(self.len()? == 0)
     }
 }

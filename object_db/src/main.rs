@@ -1,4 +1,6 @@
 mod ingest_files;
+mod object;
+mod schema;
 
 use anyhow::Result;
 
@@ -8,7 +10,6 @@ use dotenvy::dotenv;
 use std::env;
 
 fn establish_connection() -> Result<PgConnection> {
-    dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
     Ok(PgConnection::establish(&database_url)?)
@@ -26,11 +27,13 @@ enum Command {
 }
 
 fn main() -> Result<()> {
+    dotenv().ok();
+
     let cli = Args::parse();
-    let db = establish_connection()?;
+    let mut db = establish_connection()?;
 
     match &cli.command {
-        Command::Ingest { files } => ingest_files::ingest_files(&db, files)?,
+        Command::Ingest { files } => ingest_files::ingest_files(&mut db, files)?,
     };
 
     Ok(())

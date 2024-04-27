@@ -8,13 +8,10 @@ CREATE TABLE IF NOT EXISTS object (
     sigma_dec REAL,
     sigma_dec_fit REAL,
     pm_dec REAL,
-    mag0 REAL,
-    mag1 REAL,
-    mag2 REAL,
-    mag3 REAL,
-    mag4 REAL,
+    rmag REAL,
+    bmag REAL,
+    imag REAL,
     epoch REAL,
     num_detections INTEGER,
-    flags BIT(8),
     origin_file TEXT
 );
