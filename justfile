@@ -1,4 +1,4 @@
-ingest data:
+ingest data: startdb
   cargo run -p object_db -- ingest {{ data }}
 
 startdb:

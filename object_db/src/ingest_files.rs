@@ -109,7 +109,7 @@ pub fn ingest_files(db: &mut PgConnection, paths: &[impl AsRef<Path>]) -> Result
 
         let start = std::time::Instant::now();
 
-        let mut batch = Vec::new();
+        let mut batch = Vec::with_capacity(1000);
 
         for (idx, object) in objects.enumerate() {
             batch.push(object);
@@ -129,11 +129,7 @@ pub fn ingest_files(db: &mut PgConnection, paths: &[impl AsRef<Path>]) -> Result
             print!("\r    Progress: {:5.2}% ", progress);
         }
 
-        println!(
-            "\nIngested file {:?} ({}s)",
-            path,
-            start.elapsed().as_secs()
-        );
+        println!("\r    Done ({}s)        ", start.elapsed().as_secs());
     }
 
     Ok(())
