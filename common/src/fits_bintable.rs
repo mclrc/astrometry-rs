@@ -1,11 +1,15 @@
 /// FITS Bintable Reader
-use std::{collections::HashMap, error::Error, rc::Rc};
+use std::{collections::HashMap, rc::Rc};
 
 use fitrs::{Fits, FitsData, FitsDataArray, Hdu, HeaderValue};
 use serde::de::DeserializeOwned;
 use serde_json::{json, Map, Number, Value};
 
-fn datatype_size(format: &str) -> Result<usize, String> {
+use anyhow::Result;
+
+use crate::error::AstroError;
+
+fn datatype_size(format: &str) -> Result<usize> {
     let count = format[..1].parse::<usize>().unwrap();
     let datatype = format.chars().nth(1).unwrap();
 
@@ -23,16 +27,15 @@ fn datatype_size(format: &str) -> Result<usize, String> {
             'D' => 8,  // Double-precision floating point (64-bit float)
             'C' => 8,  // Complex floating point (2 x 32-bit)
             'M' => 16, // Double complex floating point (2 x 64-bit)
-            'X' => Err("Bit (X) size cannot be given in bytes")?,
-            _ => Err(format!(
+            _ => Err(AstroError::new(&format!(
                 "Can't calculate size: unknown column type: {}",
                 datatype
-            ))?,
+            )))?,
         })
     }
 }
 
-fn parse_bytes(dtype: char, bytes: &[u8]) -> Result<Value, Box<dyn Error>> {
+fn parse_bytes(dtype: char, bytes: &[u8]) -> Result<Value> {
     Ok(match dtype {
         'L' => Value::Bool(bytes[0] != 0),
         'X' => Value::Number(u8::from_be_bytes(bytes.try_into()?).into()),
@@ -42,11 +45,11 @@ fn parse_bytes(dtype: char, bytes: &[u8]) -> Result<Value, Box<dyn Error>> {
         'K' => Value::Number(i64::from_be_bytes(bytes.try_into()?).into()),
         'E' => Value::Number(
             Number::from_f64(f32::from_be_bytes(bytes.try_into()?) as f64)
-                .ok_or(format!("Invalid f32: {:?}", bytes))?,
+                .ok_or(AstroError::new(&format!("Invalid f32: {:?}", bytes)))?,
         ),
         'D' => Value::Number(
             Number::from_f64(f64::from_be_bytes(bytes.try_into()?))
-                .ok_or(format!("Invalid f64: {:?}", bytes))?,
+                .ok_or(AstroError::new(&format!("Invalid f64: {:?}", bytes)))?,
         ),
         'A' => Value::String(String::from_utf8(bytes.to_vec())?),
         'C' => json!({
@@ -57,14 +60,20 @@ fn parse_bytes(dtype: char, bytes: &[u8]) -> Result<Value, Box<dyn Error>> {
             "real": f64::from_be_bytes(bytes[..8].try_into()?),
             "imaginary": f64::from_be_bytes(bytes[8..].try_into()?),
         }),
-        _ => Err(format!("Can't parse value: unknown column type: {}", dtype))?,
+        _ => Err(AstroError::new(&format!(
+            "Can't parse value: unknown column type: {}",
+            dtype
+        )))?,
     })
 }
 
-fn read_to_string(hdu: &Hdu, key: &str) -> Result<String, String> {
-    match hdu.value(key).ok_or(format!("Value not found: {}", key))? {
+fn read_to_string(hdu: &Hdu, key: &str) -> Result<String> {
+    match hdu
+        .value(key)
+        .ok_or(AstroError::new(&format!("Value not found: {}", key)))?
+    {
         HeaderValue::CharacterString(s) => Ok(s.clone()),
-        v => Err(format!("{} Not a string: {:?}", key, v)),
+        v => Err(AstroError::new(&format!("{} Not a string: {:?}", key, v)))?,
     }
 }
 
@@ -118,7 +127,7 @@ pub struct FitsColumn {
 }
 
 impl FitsColumn {
-    pub fn value(&self, row: usize) -> Result<Value, Box<dyn Error>> {
+    pub fn value(&self, row: usize) -> Result<Value> {
         let bytes =
             &self.data.data[row * self.data.shape[0]..][self.offset..self.offset + self.size];
 
@@ -129,7 +138,7 @@ impl FitsColumn {
                 bytes
                     .chunks(datatype_size(&self.format)?)
                     .map(|chunk| parse_bytes(self.datatype, chunk))
-                    .collect::<Result<Vec<_>, _>>()?,
+                    .collect::<Result<Vec<_>>>()?,
             );
 
             Ok(array)
@@ -168,14 +177,14 @@ pub struct FitsTable {
 }
 
 impl FitsTable {
-    pub fn open(path: &str, hdu_index: usize) -> Result<Self, Box<dyn Error>> {
+    pub fn open(path: &str, hdu_index: usize) -> Result<Self> {
         let hdu = Fits::open(path)?
             .get(hdu_index)
-            .ok_or("HDU does not exist")?;
+            .ok_or(AstroError::new("HDU does not exist"))?;
 
         let data = match hdu.read_data() {
             FitsData::Bytes(FitsDataArray { shape, data }) => FitsTableData { shape, data },
-            _ => Err("Table data not in bytes")?,
+            _ => Err(AstroError::new("Table data not in bytes"))?,
         };
 
         let data = Rc::new(data);
@@ -189,10 +198,7 @@ impl FitsTable {
         Ok(table)
     }
 
-    fn get_columns(
-        hdu: &Hdu,
-        data: Rc<FitsTableData>,
-    ) -> Result<HashMap<String, FitsColumn>, Box<dyn Error>> {
+    fn get_columns(hdu: &Hdu, data: Rc<FitsTableData>) -> Result<HashMap<String, FitsColumn>> {
         let nfields = match hdu.value("TFIELDS").unwrap() {
             HeaderValue::IntegerNumber(n) => *n,
             v => panic!("TFIELDS Not an integer: {:?}", v),
@@ -232,7 +238,7 @@ impl FitsTable {
         Ok(columns)
     }
 
-    pub fn deserialize_row<T: DeserializeOwned>(&self, row: usize) -> Result<T, Box<dyn Error>> {
+    pub fn deserialize_row<T: DeserializeOwned>(&self, row: usize) -> Result<T> {
         let mut values = Map::new();
 
         for (column_name, column) in self.columns.iter() {
@@ -242,9 +248,7 @@ impl FitsTable {
         Ok(serde_json::from_value(Value::Object(values))?)
     }
 
-    pub fn iter<T: DeserializeOwned>(
-        &self,
-    ) -> impl Iterator<Item = Result<T, Box<dyn Error>>> + '_ {
+    pub fn iter<T: DeserializeOwned>(&self) -> impl Iterator<Item = Result<T>> + '_ {
         (0..self.data.shape[1]).map(|row| self.deserialize_row(row))
     }
 

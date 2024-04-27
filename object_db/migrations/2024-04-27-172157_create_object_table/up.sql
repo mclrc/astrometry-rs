@@ -1,5 +1,5 @@
-CREATE TABLE IF NOT EXISTS catalog_object (
-    usnob_id INTEGER,
+CREATE TABLE IF NOT EXISTS object (
+    usnob_id CHAR(12) PRIMARY KEY,
     ra DOUBLE PRECISION,
     sigma_ra REAL,
     sigma_ra_fit REAL,

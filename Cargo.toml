@@ -1,3 +1,3 @@
 [workspace]
-members = ["solver", "index_builder", "common"]
+members = ["solver", "object_db", "common"]
 resolver = "2"

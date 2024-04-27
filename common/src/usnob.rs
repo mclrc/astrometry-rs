@@ -1,13 +1,16 @@
 /// USNO-B Catalog File (.cat) Reader
 /// Ported from the relevant Astrometry.net C code
 use std::{
-    error::Error,
     fs::File,
     io::{BufReader, Read},
     ops::Deref,
     path::Path,
     slice,
 };
+
+use anyhow::Result;
+
+use crate::error::AstroError;
 
 use serde::Serialize;
 
@@ -114,13 +117,13 @@ fn extract_digit_chunks<const N: usize>(mut n: u32, chunks: [usize; N]) -> [u32;
 macro_rules! ensure {
     ($cond:expr, $($arg:tt)*) => {
         if !$cond {
-            Err(format!($($arg)*))?;
+            Err(AstroError::new(&format!($($arg)*)))?;
         }
     };
 }
 
 impl USNOBObject {
-    fn from_bytes(buffer: &[u8; USNOB_RECORD_SIZE], id: usize) -> Result<Self, Box<dyn Error>> {
+    fn from_bytes(buffer: &[u8; USNOB_RECORD_SIZE], id: usize) -> Result<Self> {
         let uline =
             unsafe { slice::from_raw_parts(buffer.as_ptr() as *const u32, USNOB_RECORD_SIZE / 4) };
 
@@ -249,7 +252,7 @@ impl<'a> Iterator for USNOBFileIter<'a> {
 }
 
 impl USNOBFile {
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn Error>> {
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
         let file = File::open(path)?;
 
         Ok(USNOBFile { file })
