@@ -3,14 +3,13 @@ use std::error::Error;
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 
-use common::fits::FitsTable;
-use serde_json::Value;
+use common::usnob::USNOBFile;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(dead_code)]
 struct CatalogObject {
     #[serde(rename = "USNOB_ID")]
-    usnob_id: i32,
+    usnob_id: u32,
     #[serde(rename = "RA")]
     ra: f64,
     #[serde(rename = "SIGMA_RA")]
@@ -54,25 +53,10 @@ struct Args {
 fn main() -> Result<(), Box<dyn Error>> {
     let Args { file } = Args::parse();
 
-    let table = FitsTable::open(&file, 1)?;
+    let file = USNOBFile::open(&file)?;
 
-    println!("{}", table.len());
-
-    for (name, column) in table.columns().iter() {
-        println!("{}: {}", name, column.format());
-    }
-
-    for row in table.iter::<CatalogObject>() {
-        let row = row?;
-        let zone = (row.ra * 10f64).floor() as i32;
-
-        let vizier_id = format!("{:04}-{:07}", zone, row.usnob_id);
-
-        println!(
-            "{}: {}",
-            vizier_id,
-            serde_json::to_string_pretty(&row).unwrap()
-        );
+    for object in file.iter() {
+        println!("{}", serde_json::to_string_pretty(&object)?);
     }
 
     Ok(())

@@ -1,3 +1,5 @@
+/// USNO-B Catalog File (.cat) Reader
+/// Ported from the relevant Astrometry.net C code
 use std::{
     error::Error,
     fs::File,
@@ -7,84 +9,86 @@ use std::{
     slice,
 };
 
+use serde::Serialize;
+
 const USNOB_RECORD_SIZE: usize = 80;
 
 #[inline]
+#[allow(clippy::excessive_precision)]
 fn arcsec_to_degrees(arcsec: f64) -> f64 {
     arcsec * 0.00027777777777777778
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Observation {
-    // 0 to 99.99 (m:4)
+    // 0 to 99.99
     pub mag: f32,
 
-    // Field number in the original survey. 1-937 (F:3)
+    // Field number in the original survey. 1-937
     pub field: i16,
 
-    // The original survey. (S:1)
-    // (eg USNOB_SURVEY_POSS_I_O)
+    // The original survey.
     pub survey: u32,
 
     // star/galaxy estimate.  0=galaxy, 11=star. 19=no value computed.
-    //     (GG:2)
     // (but note, in fact values 12, 13, 14, 15 and possibly others exist
     //  in the data files as well!)
     pub star_galaxy: u8,
 
-    // [degrees] (R:4)
+    // [degrees]
     pub xi_resid: f32,
 
-    // [degrees] (r:4)
+    // [degrees]
     pub eta_resid: f32,
 
-    // source of photometric calibration: (C:1)
+    // source of photometric calibration:
     //  0=bright photometric standard on this plate
     //  1=faint pm standard on this plate
     //  2=faint " " one plate away
     //  etc
     pub calibration: u8,
 
-    // back-pointer to PMM file. (i:7)
+    // back-pointer to PMM file.
     pub pmmscan: i32,
 }
 
-pub struct USNOBEntry {
+#[derive(Debug, Serialize)]
+pub struct USNOBObject {
     // Identifier used internally, not part of the USNO-B files
     pub usnob_id: String,
 
-    // Right Ascension in degrees (a:9)
+    // Right Ascension in degrees
     pub ra: f64,
-    // Declination in degrees (s:8)
+    // Declination in degrees
     pub dec: f64,
 
-    // Uncertainty in Right Ascension in degrees (u:3)
+    // Uncertainty in Right Ascension in degrees
     pub sigma_ra: f32,
-    // Uncertainty in Declination in degrees (v:3)
+    // Uncertainty in Declination in degrees
     pub sigma_dec: f32,
 
-    // Fit uncertainty in Right Ascension in degrees (Q:1)
+    // Fit uncertainty in Right Ascension in degrees
     pub sigma_ra_fit: f32,
-    // Fit uncertainty in Declination in degrees (R:1)
+    // Fit uncertainty in Declination in degrees
     pub sigma_dec_fit: f32,
 
-    // Proper motion in Right Ascension in arcsec/yr (A:3)
+    // Proper motion in Right Ascension in arcsec/yr
     pub pm_ra: f32,
-    // Proper motion in Declination in arcsec/yr (S:3)
+    // Proper motion in Declination in arcsec/yr
     pub pm_dec: f32,
 
-    // Uncertainty in proper motion in Right Ascension in arcsec/yr (x:3)
+    // Uncertainty in proper motion in Right Ascension in arcsec/yr
     pub sigma_pm_ra: f32,
-    // Uncertainty in proper motion in Declination in arcsec/yr (y:3)
+    // Uncertainty in proper motion in Declination in arcsec/yr
     pub sigma_pm_dec: f32,
 
-    // Motion probability (P:1)
+    // Motion probability
     pub pm_prob: f32,
 
-    // Epoch year, range from 1950 to 2050 (e:3)
+    // Epoch year, range from 1950 to 2050
     pub epoch: f32,
 
-    // Number of detections; different meanings based on the value (M:1)
+    // Number of detections; different meanings based on the value
     pub n_detections: u8,
 
     // Flags for diffraction spike, motion catalog, and YS4.0 correlation
@@ -93,7 +97,7 @@ pub struct USNOBEntry {
     pub ys4: bool,
 
     // Observations for this object, stored in a fixed order
-    pub observations: [Observation; 5],
+    pub observations: [Option<Observation>; 5],
 }
 
 fn extract_digit_chunks<const N: usize>(mut n: u32, chunks: [usize; N]) -> [u32; N] {
@@ -115,15 +119,15 @@ macro_rules! ensure {
     };
 }
 
-impl USNOBEntry {
+impl USNOBObject {
     fn from_bytes(buffer: &[u8; USNOB_RECORD_SIZE], id: usize) -> Result<Self, Box<dyn Error>> {
         let uline =
-            unsafe { slice::from_raw_parts(buffer.as_ptr() as *const u32, USNOB_RECORD_SIZE / 20) };
+            unsafe { slice::from_raw_parts(buffer.as_ptr() as *const u32, USNOB_RECORD_SIZE / 4) };
 
-        let ra = arcsec_to_degrees(f32::from_bits(uline[0]) as f64 * 0.01);
+        let ra = arcsec_to_degrees(uline[0] as f64 * 0.01);
         ensure!((0.0..360.0).contains(&ra), "RA {} out of range", ra);
 
-        let dec = arcsec_to_degrees(f32::from_bits(uline[1]) as f64 * 0.01) - 90.0;
+        let dec = arcsec_to_degrees(uline[1] as f64 * 0.01) - 90.0;
         ensure!((-90.0..=90.0).contains(&dec), "DEC {} out of range", dec);
 
         let [pm_ra, pm_dec, pm_prob, motion_catalog] = extract_digit_chunks(uline[2], [4, 4, 1, 1]);
@@ -155,6 +159,10 @@ impl USNOBEntry {
                 let [mag, field, survey, star_galaxy] =
                     extract_digit_chunks(uline[5 + obs_idx], [4, 3, 1, 2]);
 
+                if field == 0 {
+                    return None;
+                }
+
                 let mag = 0.01 * mag as f32;
 
                 let [xi_resid, eta_resid, calibration] =
@@ -162,7 +170,7 @@ impl USNOBEntry {
 
                 let pmmscan = uline[15 + obs_idx] as i32;
 
-                Observation {
+                Some(Observation {
                     mag,
                     field: field as i16,
                     survey,
@@ -179,7 +187,7 @@ impl USNOBEntry {
                     },
                     calibration: calibration as u8,
                     pmmscan,
-                }
+                })
             })
             .collect::<Vec<_>>()
             .try_into()
@@ -188,7 +196,7 @@ impl USNOBEntry {
         let slice = ((dec + 90.0) * 10.0).floor();
         let id = format!("{:04}-{:07}", slice, id);
 
-        Ok(USNOBEntry {
+        Ok(USNOBObject {
             usnob_id: id.to_string(),
             ra,
             dec,
@@ -228,17 +236,15 @@ pub struct USNOBFileIter<'a> {
 }
 
 impl<'a> Iterator for USNOBFileIter<'a> {
-    type Item = USNOBEntry;
+    type Item = USNOBObject;
     fn next(&mut self) -> Option<Self::Item> {
         let mut buffer = [0u8; USNOB_RECORD_SIZE];
 
         self.reader.read_exact(&mut buffer).ok()?;
 
-        let entry = USNOBEntry::from_bytes(&buffer, self.index).ok();
-
         self.index += 1;
 
-        entry
+        USNOBObject::from_bytes(&buffer, self.index).ok()
     }
 }
 
@@ -251,7 +257,7 @@ impl USNOBFile {
 
     pub fn iter(&self) -> USNOBFileIter {
         USNOBFileIter {
-            pub index: 0,
+            index: 0,
             reader: BufReader::new(&self.file),
         }
     }

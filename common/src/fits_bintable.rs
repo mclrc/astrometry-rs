@@ -1,3 +1,4 @@
+/// FITS Bintable Reader
 use std::{collections::HashMap, error::Error, rc::Rc};
 
 use fitrs::{Fits, FitsData, FitsDataArray, Hdu, HeaderValue};
