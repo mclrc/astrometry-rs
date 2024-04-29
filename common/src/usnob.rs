@@ -163,7 +163,7 @@ impl USNOBObject {
 
         let sigma_ra = arcsec_to_degrees(0.001 * sigma_ra as f64);
         let sigma_dec = arcsec_to_degrees(0.001 * sigma_dec as f64);
-        let epoch = 1950.0 + 0.01 * epoch as f64;
+        let epoch = 1950.0 + 0.1 * epoch as f64;
         let ys4 = ys4 == 1;
 
         let observations = (0..5)
@@ -290,5 +290,67 @@ impl USNOBFile {
 
     pub fn is_empty(&self) -> Result<bool> {
         Ok(self.len()? == 0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use serde::Deserialize;
+
+    #[derive(Serialize, Deserialize, Debug)]
+    struct VizierObject {
+        #[serde(rename = "USNO-B1_0")]
+        designation: String,
+        #[serde(rename = "RAJ2000")]
+        raj2000: f64,
+        #[serde(rename = "DEJ2000")]
+        dej2000: f64,
+        #[serde(rename = "R1mag")]
+        rmag: Option<f32>,
+        #[serde(rename = "B1mag")]
+        bmag: Option<f32>,
+        #[serde(rename = "Imag")]
+        imag: Option<f32>,
+    }
+
+    #[test]
+    fn test_usnob_file() {
+        let file = USNOBFile::open("../data/usnob1/b0000.cat").unwrap();
+
+        let test_json = include_str!("../test-data.json");
+
+        let test_data = serde_json::from_str::<Vec<VizierObject>>(test_json).unwrap();
+        let by_id = test_data
+            .iter()
+            .map(|o| (o.designation.clone(), o))
+            .collect::<std::collections::HashMap<_, _>>();
+
+        for obj in file.iter() {
+            println!("Comparing {:?}", obj.usnob_id);
+            let vizier_obj = by_id.get(&obj.usnob_id).unwrap();
+
+            assert!((obj.ra - vizier_obj.raj2000).abs() < 1e-4);
+            assert!((obj.dec - vizier_obj.dej2000).abs() < 1e-4);
+            assert!(
+                (obj.observations.blue1.map(|o| o.mag).unwrap_or(0.0)
+                    - vizier_obj.bmag.unwrap_or(0.0))
+                .abs()
+                    < 1e-4
+            );
+            assert!(
+                (obj.observations.red1.map(|o| o.mag).unwrap_or(0.0)
+                    - vizier_obj.rmag.unwrap_or(0.0))
+                .abs()
+                    < 1e-4
+            );
+            assert!(
+                (obj.observations.infrared.map(|o| o.mag).unwrap_or(0.0)
+                    - vizier_obj.imag.unwrap_or(0.0))
+                .abs()
+                    < 1e-4
+            );
+        }
     }
 }
