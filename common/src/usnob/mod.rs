@@ -295,6 +295,8 @@ impl USNOBFile {
 
 #[cfg(test)]
 mod tests {
+    use std::{fs::read_to_string, path::PathBuf};
+
     use super::*;
 
     use serde::Deserialize;
@@ -315,13 +317,20 @@ mod tests {
         imag: Option<f32>,
     }
 
+    fn from_crate_root(relative_path: &str) -> PathBuf {
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        let full_path = Path::new(&manifest_dir).join(relative_path);
+        full_path
+    }
+
     #[test]
     fn test_usnob_file() {
-        let file = USNOBFile::open("../data/usnob1/b0000.cat").unwrap();
+        let file = USNOBFile::open(from_crate_root("src/usnob/testdata/b0000.cat")).unwrap();
 
-        let test_json = include_str!("../test-data.json");
+        let test_json =
+            read_to_string(from_crate_root("src/usnob/testdata/vizier-data.json")).unwrap();
 
-        let test_data = serde_json::from_str::<Vec<VizierObject>>(test_json).unwrap();
+        let test_data = serde_json::from_str::<Vec<VizierObject>>(&test_json).unwrap();
         let by_id = test_data
             .iter()
             .map(|o| (o.designation.clone(), o))
