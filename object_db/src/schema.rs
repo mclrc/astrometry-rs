@@ -12,13 +12,11 @@ diesel::table! {
         sigma_dec -> Nullable<Float4>,
         sigma_dec_fit -> Nullable<Float4>,
         pm_dec -> Nullable<Float4>,
-        bmag -> Nullable<Float4>,
         rmag -> Nullable<Float4>,
+        bmag -> Nullable<Float4>,
         imag -> Nullable<Float4>,
         epoch -> Nullable<Float4>,
         num_detections -> Nullable<Int4>,
-        #[max_length = 8]
-        flags -> Nullable<Bit>,
         origin_file -> Nullable<Text>,
     }
 }

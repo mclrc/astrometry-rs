@@ -3,3 +3,11 @@ ingest data: startdb
 
 startdb:
   docker compose up -d
+
+shell: startdb
+  docker compose exec database /bin/bash
+
+migrate: startdb
+  #!/bin/bash
+  cd object_db
+  diesel migration run

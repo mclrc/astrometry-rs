@@ -1,6 +1,7 @@
 services:
   database:
-    image: postgres:16.2
+    build:
+      context: object_db
     env_file: ./object_db/.env
     ports:
       - 5432:5432
