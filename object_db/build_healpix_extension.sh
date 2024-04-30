@@ -1,9 +1,7 @@
-apt-get update
-
+apt-get update -y
 apt-get install -y curl git make gcc postgresql-server-dev-16
 
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-
 export PATH="$HOME/.cargo/bin:$PATH"
 
 cd /tmp
@@ -13,5 +11,3 @@ cd cds-healpix-rust/libpsql
 RUSTFLAGS='-C target-cpu=native' cargo build --release
 make
 make install
-
-psql -d astrometry -U astrometry -c "CREATE EXTENSION pg_cds_healpix;"

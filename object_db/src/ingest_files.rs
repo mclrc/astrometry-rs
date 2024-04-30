@@ -85,7 +85,7 @@ pub fn ingest_files(db: &mut PgConnection, paths: &[impl AsRef<Path>]) -> Result
                     let entry = entry.ok().unwrap_or_else(|| {
                         panic!("Failed to read file {:?}", p);
                     });
-                    if entry.path().is_file() {
+                    if entry.path().is_file() && entry.path().extension() == Some("cat".as_ref()) {
                         files.push(entry.path());
                     }
                 }
