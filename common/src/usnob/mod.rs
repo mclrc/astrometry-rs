@@ -144,16 +144,16 @@ impl USNOBObject {
 
         let [pm_ra, pm_dec, pm_prob, motion_catalog] = extract_digit_chunks(uline[2], [4, 4, 1, 1]);
 
-        let pm_ra = 0.002 * (pm_ra as f64 - 5000.0);
-        let pm_dec = 0.002 * (pm_dec as f64 - 5000.0);
-        let pm_prob = 0.1 * pm_prob as f64;
+        let pm_ra = 0.002 * (pm_ra as f32 - 5000.0);
+        let pm_dec = 0.002 * (pm_dec as f32 - 5000.0);
+        let pm_prob = 0.1 * pm_prob as f32;
         let motion_catalog = motion_catalog == 1;
 
         let [sigma_pm_ra, sigma_pm_dec, sigma_ra_fit, sigma_dec_fit, n_detections, diffraction_spike] =
             extract_digit_chunks(uline[3], [3, 3, 1, 1, 1, 1]);
 
-        let sigma_pm_ra = 0.001 * sigma_pm_ra as f64;
-        let sigma_pm_dec = 0.001 * sigma_pm_dec as f64;
+        let sigma_pm_ra = 0.001 * sigma_pm_ra as f32;
+        let sigma_pm_dec = 0.001 * sigma_pm_dec as f32;
         let sigma_ra_fit = arcsec_to_degrees(0.1 * sigma_ra_fit as f64);
         let sigma_dec_fit = arcsec_to_degrees(0.1 * sigma_dec_fit as f64);
         let n_detections = n_detections as u8;
@@ -163,7 +163,7 @@ impl USNOBObject {
 
         let sigma_ra = arcsec_to_degrees(0.001 * sigma_ra as f64);
         let sigma_dec = arcsec_to_degrees(0.001 * sigma_dec as f64);
-        let epoch = 1950.0 + 0.1 * epoch as f64;
+        let epoch = 1950.0 + 0.1 * epoch as f32;
         let ys4 = ys4 == 1;
 
         let observations = (0..5)
@@ -218,12 +218,12 @@ impl USNOBObject {
             sigma_dec: sigma_dec as f32,
             sigma_ra_fit: sigma_ra_fit as f32,
             sigma_dec_fit: sigma_dec_fit as f32,
-            pm_ra: pm_ra as f32,
-            pm_dec: pm_dec as f32,
-            sigma_pm_ra: sigma_pm_ra as f32,
-            sigma_pm_dec: sigma_pm_dec as f32,
-            pm_prob: pm_prob as f32,
-            epoch: epoch as f32,
+            pm_ra,
+            pm_dec,
+            sigma_pm_ra,
+            sigma_pm_dec,
+            pm_prob,
+            epoch,
             n_detections,
             diffraction_spike,
             motion_catalog,

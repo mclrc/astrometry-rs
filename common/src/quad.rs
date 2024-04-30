@@ -20,7 +20,7 @@ fn arrange<T>(arrangement: &[usize; 4], items: [T; 4]) -> impl Iterator<Item = T
 type GHash = [f64; 4];
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-pub struct Quad<Star = ()> {
+pub struct Quad<Star> {
     stars: [Star; 4],
     ghash: GHash,
 }
