@@ -1,3 +1,4 @@
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -7,6 +8,8 @@ use common::usnob::USNOBObject;
 use sqlx::{Connection, SqliteConnection};
 
 use itertools::Itertools;
+
+use sqlx::Row;
 
 use crate::object::Object;
 
@@ -99,8 +102,27 @@ pub async fn ingest_files(paths: &[impl AsRef<Path>]) -> Result<()> {
 
     let mut connection = SqliteConnection::connect(&dotenvy::var("DATABASE_URL")?).await?;
 
+    let last_inserted_file_query = sqlx::query(
+        "SELECT SUBSTRING(usnob_id, 1, 4) AS usnob_id_part FROM object ORDER BY usnob_id DESC LIMIT 1"
+    );
+
+    let first_to_ingest = match last_inserted_file_query.fetch_one(&mut connection).await {
+        Err(_) => 0,
+        Ok(row) => {
+            let usnob_id_part: String = row.try_get("usnob_id_part").unwrap_or(0.to_string());
+            usnob_id_part.parse::<i32>().unwrap_or(0)
+        }
+    };
+
     for path in files {
         let file = USNOBFile::open(&path)?;
+
+        let file_number = path.file_stem().unwrap().to_str().unwrap()[1..5].parse::<i32>()?;
+
+        if file_number < first_to_ingest {
+            continue;
+        }
+
         let objects = file
             .iter()
             .map(|o| to_db_schema(&o, path.to_str().unwrap()));
@@ -113,8 +135,11 @@ pub async fn ingest_files(paths: &[impl AsRef<Path>]) -> Result<()> {
 
         for (idx, chunk) in objects.chunks(INSERT_BATCH_SIZE).into_iter().enumerate() {
             Object::insert_many(chunk, &mut connection).await?;
-            let progress = ((idx * 1000) as f32 / n_objects as f32) * 100.0;
-            print!("\r    Progress: {:5.2}% ", progress);
+            let progress = ((idx * INSERT_BATCH_SIZE) as f32 / n_objects as f32) * 100.0;
+            if idx % 150 == 0 {
+                print!("\r    Progress: {:5.2}% ", progress);
+                io::stdout().flush().unwrap();
+            }
         }
 
         println!("\r    Done ({}s)        ", start.elapsed().as_secs());
