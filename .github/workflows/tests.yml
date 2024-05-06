@@ -14,6 +14,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+    - name: Install just
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to $RUNNER_TEMP
+        chmod +x $RUNNER_TEMP/just
+    - name: Setup env
+      run: |
+        echo export "DATABASE_PATH=$HOME/db.sqlite3" >> .env
+        echo export "DATABASE_URL=sqlite://$HOME/db.sqlite3" >> .env
+        cat .env
+    - name: Initialize empty DB
+      run: $RUNNER_TEMP/just initdb
     - name: Build
       run: cargo build --release --verbose
     - name: Lint

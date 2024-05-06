@@ -135,8 +135,9 @@ pub async fn ingest_files(paths: &[impl AsRef<Path>]) -> Result<()> {
 
         for (idx, chunk) in objects.chunks(INSERT_BATCH_SIZE).into_iter().enumerate() {
             Object::insert_many(chunk, &mut connection).await?;
-            let progress = ((idx * INSERT_BATCH_SIZE) as f32 / n_objects as f32) * 100.0;
-            if idx % 150 == 0 {
+
+            if idx % 100 == 0 {
+                let progress = ((idx * INSERT_BATCH_SIZE) as f32 / n_objects as f32) * 100.0;
                 print!("\r    Progress: {:5.2}% ", progress);
                 io::stdout().flush().unwrap();
             }
