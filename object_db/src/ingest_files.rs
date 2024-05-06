@@ -1,13 +1,16 @@
-use diesel::prelude::*;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use common::usnob::{Observation, USNOBFile};
-use diesel::PgConnection;
 
 use common::usnob::USNOBObject;
+use sqlx::{Connection, SqliteConnection};
 
-use crate::{object::Object, schema};
+use itertools::Itertools;
+
+use crate::object::Object;
+
+const INSERT_BATCH_SIZE: usize = 1000;
 
 fn to_db_schema(obj: &USNOBObject, filename: &str) -> Object {
     let bmag = {
@@ -71,31 +74,30 @@ fn to_db_schema(obj: &USNOBObject, filename: &str) -> Object {
     }
 }
 
-pub fn ingest_files(db: &mut PgConnection, paths: &[impl AsRef<Path>]) -> Result<()> {
-    let files = paths
-        .iter()
-        .map(<_>::as_ref)
-        .flat_map(|p| {
-            if p.is_dir() {
-                let mut files = Vec::new();
-                for entry in p
-                    .read_dir()
-                    .unwrap_or_else(|_| panic!("Failed to read directory {:?}", p))
-                {
-                    let entry = entry.ok().unwrap_or_else(|| {
-                        panic!("Failed to read file {:?}", p);
-                    });
-                    if entry.path().is_file() && entry.path().extension() == Some("cat".as_ref()) {
-                        files.push(entry.path());
-                    }
-                }
+pub fn get_files(paths: &[impl AsRef<Path>]) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
 
-                files
-            } else {
-                vec![p.to_path_buf()]
+    for path in paths {
+        let path = path.as_ref();
+        if path.is_dir() {
+            for entry in path.read_dir()? {
+                let entry = entry?;
+                if entry.path().is_file() && entry.path().extension() == Some("cat".as_ref()) {
+                    files.push(entry.path());
+                }
             }
-        })
-        .collect::<Vec<PathBuf>>();
+        } else {
+            files.push(path.to_path_buf());
+        }
+    }
+
+    Ok(files)
+}
+
+pub async fn ingest_files(paths: &[impl AsRef<Path>]) -> Result<()> {
+    let files = get_files(paths)?;
+
+    let mut connection = SqliteConnection::connect(&dotenvy::var("DATABASE_URL")?).await?;
 
     for path in files {
         let file = USNOBFile::open(&path)?;
@@ -109,23 +111,9 @@ pub fn ingest_files(db: &mut PgConnection, paths: &[impl AsRef<Path>]) -> Result
 
         let start = std::time::Instant::now();
 
-        let mut batch = Vec::with_capacity(1000);
-
-        for (idx, object) in objects.enumerate() {
-            batch.push(object);
-
-            if batch.len() < 1000 && idx + 1 < n_objects {
-                continue;
-            }
-
-            diesel::insert_into(schema::object::table)
-                .values(&batch)
-                .on_conflict(schema::object::usnob_id)
-                .do_nothing()
-                .execute(db)?;
-
-            batch.clear();
-            let progress = (idx as f32 / n_objects as f32) * 100.0;
+        for (idx, chunk) in objects.chunks(INSERT_BATCH_SIZE).into_iter().enumerate() {
+            Object::insert_many(chunk, &mut connection).await?;
+            let progress = ((idx * 1000) as f32 / n_objects as f32) * 100.0;
             print!("\r    Progress: {:5.2}% ", progress);
         }
 

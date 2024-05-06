@@ -5,7 +5,6 @@ use std::{
     io::{BufReader, Read},
     ops::Deref,
     path::Path,
-    slice,
 };
 
 use anyhow::Result;
@@ -131,10 +130,22 @@ macro_rules! ensure {
     };
 }
 
+fn u8_to_u32_slice(src: &[u8], dst: &mut [u32]) -> Result<()> {
+    ensure!(src.len() == dst.len() * 4, "Buffer lenghts do not match");
+
+    for (i, chunk) in src.chunks_exact(4).enumerate() {
+        let value = u32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        dst[i] = value;
+    }
+
+    Ok(())
+}
+
 impl USNOBObject {
     fn from_bytes(buffer: &[u8; USNOB_RECORD_SIZE], id: usize) -> Result<Self> {
-        let uline =
-            unsafe { slice::from_raw_parts(buffer.as_ptr() as *const u32, USNOB_RECORD_SIZE / 4) };
+        let mut uline: [u32; 20] = [0; 20];
+
+        u8_to_u32_slice(buffer, &mut uline)?;
 
         let ra = arcsec_to_degrees(uline[0] as f64 * 0.01);
         ensure!((0.0..360.0).contains(&ra), "RA {} out of range", ra);
@@ -325,10 +336,9 @@ mod tests {
 
     #[test]
     fn test_usnob_file() {
-        let file = USNOBFile::open(from_crate_root("src/usnob/testdata/b0000.cat")).unwrap();
+        let file = USNOBFile::open(from_crate_root("src/testdata/b0000.cat")).unwrap();
 
-        let test_json =
-            read_to_string(from_crate_root("src/usnob/testdata/vizier-data.json")).unwrap();
+        let test_json = read_to_string(from_crate_root("src/testdata/vizier-data.json")).unwrap();
 
         let test_data = serde_json::from_str::<Vec<VizierObject>>(&test_json).unwrap();
         let by_id = test_data
