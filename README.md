@@ -1,7 +1,7 @@
 # astrometry-rs 
 [![Tests](https://github.com/mclrc/astrometry-rs/actions/workflows/tests.yml/badge.svg)](https://github.com/mclrc/astrometry-rs/actions/workflows/tests.yml)
 
-This repository is my (very WIP) attempt at implementing blind astrometric image calibration, which is the process of determining the locations of an arbitrary astronomical images, as well as the identities of the visible stars, based on nothing but the images themselves.
+This repository is my (very WIP) attempt at implementing blind astrometric image calibration, which is the process of determining the locations of arbitrary astronomical images, as well as the identities of the visible stars, based on nothing but the images themselves.
 
 Solving this problem requires a very clever suite of algorithms developed by some very smart people. They are outlined in the [astrometry.net paper](https://arxiv.org/abs/0910.2233), which this project is based on.
 
