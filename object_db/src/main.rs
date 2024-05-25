@@ -1,3 +1,4 @@
+mod download_catalog;
 mod ingest_files;
 mod object;
 
@@ -15,6 +16,7 @@ struct Args {
 #[derive(Subcommand, Debug)]
 enum Command {
     Ingest { files: Vec<String> },
+    DownloadCatalog { destination: String },
 }
 
 #[tokio::main]
@@ -25,6 +27,9 @@ async fn main() -> Result<()> {
 
     match &cli.command {
         Command::Ingest { files } => ingest_files::ingest_files(files).await?,
+        Command::DownloadCatalog { destination } => {
+            download_catalog::download_catalog(destination).await?
+        }
     };
 
     Ok(())
