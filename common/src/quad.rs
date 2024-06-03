@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::f64::consts::SQRT_2;
 use std::fmt::Debug;
 
-fn arrange<T>(arrangement: &[usize; 4], items: [T; 4]) -> impl Iterator<Item = T> {
+fn arrange<T>(items: [T; 4], arrangement: &[usize; 4]) -> impl Iterator<Item = T> {
     items
         .into_iter()
         .enumerate()
@@ -31,7 +31,7 @@ impl<Star: Debug> Quad<Star> {
 
         if let Some((ghash, arrangement)) = Self::compute_ghash(&star_positions) {
             // Get stars into the order of the arrangement
-            let arranged_stars = arrange(&arrangement, stars)
+            let arranged_stars = arrange(stars, &arrangement)
                 .map(|(_, star)| star)
                 .collect::<Vec<_>>()
                 .try_into()
@@ -236,11 +236,11 @@ mod tests {
 
     #[test]
     fn test_arrange() {
-        assert!(arrange(&[0, 1, 2, 3], ['a', 'b', 'c', 'd']).eq(['a', 'b', 'c', 'd']));
-        assert!(arrange(&[0, 1, 3, 2], ['a', 'b', 'c', 'd']).eq(['a', 'b', 'd', 'c']));
-        assert!(arrange(&[0, 2, 1, 3], ['a', 'b', 'c', 'd']).eq(['a', 'c', 'b', 'd']));
-        assert!(arrange(&[0, 2, 3, 1], ['a', 'b', 'c', 'd']).eq(['a', 'c', 'd', 'b']));
-        assert!(arrange(&[0, 3, 1, 2], ['a', 'b', 'c', 'd']).eq(['a', 'd', 'b', 'c']));
-        assert!(arrange(&[3, 2, 1, 0], ['a', 'b', 'c', 'd']).eq(['d', 'c', 'b', 'a']));
+        assert!(arrange(['a', 'b', 'c', 'd'], &[0, 1, 2, 3]).eq(['a', 'b', 'c', 'd']));
+        assert!(arrange(['a', 'b', 'c', 'd'], &[0, 1, 3, 2]).eq(['a', 'b', 'd', 'c']));
+        assert!(arrange(['a', 'b', 'c', 'd'], &[0, 2, 1, 3]).eq(['a', 'c', 'b', 'd']));
+        assert!(arrange(['a', 'b', 'c', 'd'], &[0, 2, 3, 1]).eq(['a', 'c', 'd', 'b']));
+        assert!(arrange(['a', 'b', 'c', 'd'], &[0, 3, 1, 2]).eq(['a', 'd', 'b', 'c']));
+        assert!(arrange(['a', 'b', 'c', 'd'], &[3, 2, 1, 0]).eq(['d', 'c', 'b', 'a']));
     }
 }
