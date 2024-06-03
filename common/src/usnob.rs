@@ -1,17 +1,13 @@
 /// USNO-B Catalog File (.cat) Reader
 /// Ported from the relevant Astrometry.net C code
+use anyhow::{ensure, Result};
+use serde::Serialize;
 use std::{
     fs::File,
     io::{BufReader, Read},
     ops::Deref,
     path::Path,
 };
-
-use anyhow::Result;
-
-use crate::error::AstroError;
-
-use serde::Serialize;
 
 const USNOB_RECORD_SIZE: usize = 80;
 
@@ -120,14 +116,6 @@ fn extract_digit_chunks<const N: usize>(mut n: u32, chunks: [usize; N]) -> [u32;
     }
 
     nums
-}
-
-macro_rules! ensure {
-    ($cond:expr, $($arg:tt)*) => {
-        if !$cond {
-            Err(AstroError::new(&format!($($arg)*)))?;
-        }
-    };
 }
 
 fn u8_to_u32_slice(src: &[u8], dst: &mut [u32]) -> Result<()> {
@@ -306,7 +294,9 @@ impl USNOBFile {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs::read_to_string, path::PathBuf};
+    use std::fs::read_to_string;
+
+    use crate::util::from_crate_root;
 
     use super::*;
 
@@ -328,17 +318,11 @@ mod tests {
         imag: Option<f32>,
     }
 
-    fn from_crate_root(relative_path: &str) -> PathBuf {
-        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-        let full_path = Path::new(&manifest_dir).join(relative_path);
-        full_path
-    }
-
     #[test]
     fn test_usnob_file() {
-        let file = USNOBFile::open(from_crate_root("src/testdata/b0000.cat")).unwrap();
+        let file = USNOBFile::open(from_crate_root("testdata/b0000.cat")).unwrap();
 
-        let test_json = read_to_string(from_crate_root("src/testdata/vizier-data.json")).unwrap();
+        let test_json = read_to_string(from_crate_root("testdata/vizier-data.json")).unwrap();
 
         let test_data = serde_json::from_str::<Vec<VizierObject>>(&test_json).unwrap();
         let by_id = test_data
