@@ -9,6 +9,7 @@ struct Args {
     #[clap(short, long)]
     output: Option<PathBuf>,
 }
+
 fn main() -> Result<()> {
     let args = Args::parse();
 

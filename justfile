@@ -7,8 +7,8 @@ ingest data:
   cargo run --release -p object_db -- ingest {{ data }}
 
 [no-cd]
-exs input_path *output_path:
-  cargo run --release -p source_extractor -- {{ input_path }} {{ output_path }}
+exs input_path *args:
+  cargo run --release -p source_extractor -- {{ input_path }} {{ args }}
 
 test:
   cargo t --release -- --nocapture
